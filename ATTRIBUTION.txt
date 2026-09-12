@@ -1,0 +1,24 @@
+Google Chilean Spanish Low-resource Speech (OpenSLR SLR71)
+https://openslr.org/71
+
+Citation (LREC 2020):
+J. M. Martin-Valdivia, E. Ufimtseva, A. V. Parkhilko, A. Y. Zhila,
+D. Gimeno-Gomez, "SLR71: Google Crowdsource Multilingual Speech Corpus",
+Language Resources and Evaluation Conference (LREC 2020), Marseille, 2020.
+
+Copyright 2018, 2019 Google, Inc.
+License: Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
+https://creativecommons.org/licenses/by-sa/4.0/
+
+This attribution applies to every artifact derived in this repo: the
+es_CL-huemul-medium Piper voice, the distilled sanoTTS "chilean" bundles,
+and their release packages. Derived artifacts carry attribution and remain
+compatible with CC BY-SA 4.0 (the sanoTTS training/G2P side is GPLv3; both
+licenses permit attribution + share-alike redistribution).
+
+Selected subset: male speaker clm_02121 (146 utterances, ~18.8 min at 48 kHz).
+Base checkpoint: es_ES-davefx-medium (rhasspy/piper-checkpoints).
+
+Additional training text: Tatoeba sentences (language=spa), CC BY 2.0 FR,
+https://tatoeba.org — used only as text for the teacher to render during
+distillation, never as training audio.
