@@ -231,7 +231,7 @@ async function speak() {
     status("synthesizing…");
     const t0 = performance.now();
     const ids = textToIds(text);
-    const pcm = synthToPcm(current, ids);
+    const pcm = synthToPcm(current.bundle, ids);
     const wall = (performance.now() - t0) / 1000;
     const secs = pcm.length / SR;
 
