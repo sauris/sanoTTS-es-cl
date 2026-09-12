@@ -39,6 +39,11 @@ one-time runtime copy.</p>
 </div>
 <audio id="player" controls></audio>
 
+<!-- wasm runtime: classic script tags (emscripten MODULARIZE assigns
+     window.SaanoVoice / window.SaanoG2P); copied in by setup.sh -->
+<script src="snt_voice.js"></script>
+<script src="snt_g2p.js"></script>
+
 <script type="module">
 const VOICE_KEYS = [
   "chilean",
@@ -124,15 +129,31 @@ async function loadVoice(key) {
 }
 
 // ---- wasm chains -----------------------------------------------------------
-const SaanoVoice = (await import("./snt_voice.js")).default;
-const SaanoG2P = (await import("./snt_g2p.js")).default;
-const V = await SaanoVoice();
-const G = await SaanoG2P({ locateFile: (f) => `./${f}` });
+if (location.protocol === "file:") {
+  status("this page needs an http server — run: cd demo && python3 -m http.server 8178, " +
+         "then open http://localhost:8178", true);
+  $("speak").disabled = true;
+} else if (typeof SaanoVoice !== "function" || typeof SaanoG2P !== "function") {
+  status("wasm runtime missing — run: demo/setup.sh /path/to/sanoTTS/web, then reload", true);
+  $("speak").disabled = true;
+}
 
-const setVoice = G.cwrap("snt_g2p_set_voice", "number", ["string", "number"]);
-const g2pIds = G.cwrap("snt_g2p_text_to_ids", "number", ["number", "number", "number"]);
-const synth = V.cwrap("snt_voice_synthesize", "number",
-  ["number", "number", "number", "number", "number", "number", "number"]);
+let V = null, G = null;
+try {
+  V = await SaanoVoice();
+  G = await SaanoG2P({ locateFile: (f) => `./${f}` });
+} catch (e) {
+  status("runtime failed to start: " + (e.message || e), true);
+  $("speak").disabled = true;
+}
+
+let setVoice = null, g2pIds = null, synth = null;
+if (G && V) {
+  setVoice = G.cwrap("snt_g2p_set_voice", "number", ["string", "number"]);
+  g2pIds = G.cwrap("snt_g2p_text_to_ids", "number", ["number", "number", "number"]);
+  synth = V.cwrap("snt_voice_synthesize", "number",
+    ["number", "number", "number", "number", "number", "number", "number"]);
+}
 
 function textToIds(text) {
   const nBytes = G.lengthBytesUTF8(text) + 1;
@@ -180,7 +201,12 @@ function toWav(f32, sr) {
 }
 
 async function speak() {
+  if (!g2pIds || !synth || !V) {
+    status("runtime not ready — see the message above", true);
+    return;
+  }
   const key = $("voice").value;
+  if (!key) { status("no voice bundle loaded", true); return; }
   $("speak").disabled = true;
   try {
     if (!current || current.key !== key) {
@@ -228,23 +254,27 @@ async function speak() {
 
 // populate the voice dropdown: list every bundle that is actually present
 const sel = $("voice");
+const params = new URLSearchParams(location.search);
+const wantVoice = params.get("voice");
+const wantText = params.get("text");
+const autoplay = params.get("autoplay") === "1" || params.get("autoplay") === "true";
 const found = [];
 await Promise.all(VOICE_KEYS.map(async (key) => {
   try {
     const meta = await (await fetch(`voices/${key}/meta.json`)).json();
-    found.push({ key, params: meta.params_note || key });
+    found.push(key);
     const opt = document.createElement("option");
     opt.value = key;
-    opt.textContent = key;
+    opt.textContent = key + (meta.weights === "int8" ? " (int8)" : "");
     sel.appendChild(opt);
-    if (DEFAULT_TEXT[key]) $("text").value = DEFAULT_TEXT[key];
   } catch { /* bundle not present in this checkout */ }
 }));
-if (!found.length) {
+if (found.length) {
+  sel.value = wantVoice && found.includes(wantVoice) ? wantVoice : found[0];
+  $("text").value = wantText || DEFAULT_TEXT[sel.value] || $("text").value;
+} else {
   status("no voice bundles under demo/voices/ — run demo/setup.sh and re-copy, " +
          "or copy a bundle (e.g. web/voices/chilean-small-int8) into demo/voices/", true);
-} else {
-  status("ready — type and press Speak");
 }
 $("speak").addEventListener("click", speak);
 $("text").addEventListener("keydown", (e) => {
@@ -254,6 +284,18 @@ $("voice").addEventListener("change", () => {
   const t = DEFAULT_TEXT[sel.value];
   if (t) $("text").value = t;
 });
+
+// ?autoplay=1: browsers block audio without a user gesture, so try to play
+// immediately and fall back to a one-tap prompt if the context is suspended.
+if (autoplay && found.length) {
+  await speak();
+  if (current && current.audioCtx.state !== "running") {
+    status("browser blocked autoplay — press Speak once to start the audio", true);
+    $("speak").textContent = "▶ Play";
+  }
+} else if (found.length) {
+  status("ready — type and press Speak");
+}
 </script>
 </body>
 </html>

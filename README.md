@@ -19,6 +19,30 @@ Chilean Spanish (es_CL) text-to-speech, end to end:
 Everything here is scriptable and re-runnable for **any language / speaker**
 — see [PIPELINE.md](PIPELINE.md).
 
+## ▶ Try it live
+
+The repo ships a browser player on GitHub Pages:
+
+**https://sauris.github.io/sanoTTS-es-cl/**
+
+It runs entirely client-side (WebAssembly, no server): type a sentence,
+press Speak, download the WAV. URL parameters are supported, so you can
+share links that preload and even start playing:
+
+- `?text=¡Ya po!+Hola+a+todos` — preload the textarea
+- `?voice=chilean-small-int8` — pick the voice
+- `?autoplay=1` — speak as soon as the model loads (if the browser blocks
+  autoplay, the Speak button takes one tap)
+
+All together:
+`https://sauris.github.io/sanoTTS-es-cl/?voice=chilean-small-int8&autoplay=1&text=...`
+
+(GitHub Pages is enabled in *Settings → Pages → GitHub Actions*, served by
+[.github/workflows/pages.yml](.github/workflows/pages.yml) from the
+`demo/` folder — the same pattern the main sanoTTS site uses for
+<https://ampixa.github.io/sanoTTS/>.) To run the same page locally:
+`cd demo && python3 -m http.server 8178`.
+
 ## Results
 
 | artifact | size | note |
@@ -68,13 +92,16 @@ SLR71 dataset, and the Tatoeba community for supplemental text.
 
 ## Try it in your browser (no build)
 
+The runtime + both small voices are committed inside `demo/`, so:
+
 ```bash
 cd demo
-./setup.sh /path/to/sanoTTS/web      # copies the ~4.3 MB wasm runtime once
 python3 -m http.server 8178          # then open http://localhost:8178
 ```
 
-The page loads the committed voice bundles (`chilean-small` f16 at 681 KB,
+`demo/setup.sh` is only needed to refresh the wasm runtime from a newer
+sanoTTS checkout (`demo/setup.sh /path/to/sanoTTS/web`). The page loads the
+committed voice bundles (`chilean-small` f16 at 681 KB,
 `chilean-small-int8` at 333 KB), phonemizes your text with the espeak-ng
 es-419 wasm and synthesizes live — type anything, press Speak, or download
 the WAV. Add more bundles (e.g. the 1.57M `chilean`) by copying

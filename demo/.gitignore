@@ -1,6 +1,0 @@
-# demo runtime is copied in by setup.sh (~4.3 MB), not committed
-snt_voice.js
-snt_voice.wasm
-snt_g2p.js
-snt_g2p.wasm
-snt_g2p.data
