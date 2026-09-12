@@ -185,7 +185,8 @@ function synthToPcm(bundle, ids) {
 }
 
 // ---- ui --------------------------------------------------------------------
-let current = null;   // {bundle, audioCtx, pcm}
+let current = null;   // {key, bundle}
+let audioCtx = null;
 
 function toWav(f32, sr) {
   const n = f32.length;
@@ -261,7 +262,7 @@ async function speak() {
         dec: mallocBytes(raw.dec),
       };
       if (current) { V._free(current.bundle.front.p); V._free(current.bundle.dec.p); }
-      current = { key, bundle, audioCtx: new AudioContext({ sampleRate: SR }) };
+      current = { key, bundle };
     }
     const text = $("text").value.trim();
     if (!text) throw new Error("type a sentence first");
@@ -280,8 +281,12 @@ async function speak() {
     const wall = (performance.now() - t0) / 1000;
     const secs = pcm.length / SR;
 
-    const ctx = current.audioCtx;
-    const buffer = ctx.createBuffer(1, pcm.length, SR);
+    // playback: singleton default-rate context, exactly like the main site's
+    // play() -- the 22.05 kHz buffer is resampled by the browser. Forcing a
+    // 22050 Hz context garbles output on some browser/device combos.
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();   // no await: site's play() pattern
+    const buffer = audioCtx.createBuffer(1, pcm.length, SR);
     buffer.copyToChannel(pcm, 0);
     $("player").src = URL.createObjectURL(toWav(pcm, SR));
     $("player").style.display = "block";
@@ -292,10 +297,9 @@ async function speak() {
       a.download = "chilean.wav";
       a.click();
     };
-    await ctx.resume();
-    const src = ctx.createBufferSource();
+    const src = audioCtx.createBufferSource();
     src.buffer = buffer;
-    src.connect(ctx.destination);
+    src.connect(audioCtx.destination);
     src.start();
     status(`${secs.toFixed(2)}s of audio in ${wall.toFixed(2)}s (${(secs / wall).toFixed(1)}× realtime) — speaking`);
   } catch (e) {
@@ -344,7 +348,7 @@ $("voice").addEventListener("change", () => {
 // immediately and fall back to a one-tap prompt if the context is suspended.
 if (autoplay && found.length) {
   await speak();
-  if (current && current.audioCtx.state !== "running") {
+  if (audioCtx && audioCtx.state !== "running") {
     status("browser blocked autoplay — press Speak once to start the audio", true);
     $("speak").textContent = "▶ Play";
   }
