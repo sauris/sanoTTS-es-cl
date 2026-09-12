@@ -206,6 +206,40 @@ function mallocBytes(bytes) {
   return { p, len: bytes.length };
 }
 
+// Split text into per-sentence chunks — the models are trained on single
+// utterances, so feeding a whole paragraph as one id sequence degrades badly.
+// Ported verbatim from web/index.html splitChunks().
+function splitChunks(text){
+  const MAX = 120, MIN = 40;
+  const sents = text.match(/[^.!?।。！？]+[.!?।。！？]*\s*/g) || [text];
+  for(let i = sents.length - 2; i >= 0; i--){
+    if(/\p{Nd}\.$/u.test(sents[i].trimEnd()) && /^\s*\p{Nd}/u.test(sents[i + 1])){
+      sents[i] = sents[i].trimEnd() + sents[i + 1];
+      sents.splice(i + 1, 1);
+    }
+  }
+  const chunks = [];
+  for (let s of sents){
+    s = s.trim();
+    if (!s) continue;
+    while (s.length > MAX){
+      let cut = -1;
+      for (const m of s.matchAll(/[,;:、，；：]\s*/g)){
+        const end = m.index + m[0].length;
+        if (end >= MIN && end <= MAX) cut = end;
+      }
+      if (cut < 0){
+        const sp = s.lastIndexOf(" ", MAX);
+        cut = sp > MIN ? sp + 1 : MAX;
+      }
+      chunks.push(s.slice(0, cut).trim());
+      s = s.slice(cut).trim();
+    }
+    if (s) chunks.push(s);
+  }
+  return chunks.length ? chunks : [text];
+}
+
 async function speak() {
   if (!g2pIds || !synth || !V) {
     status("runtime not ready — see the message above", true);
@@ -228,10 +262,18 @@ async function speak() {
     }
     const text = $("text").value.trim();
     if (!text) throw new Error("type a sentence first");
-    status("synthesizing…");
+    const chunks = splitChunks(text);
+    const pcms = [];
     const t0 = performance.now();
-    const ids = textToIds(text);
-    const pcm = synthToPcm(current.bundle, ids);
+    for (let i = 0; i < chunks.length; i++) {
+      status(chunks.length > 1 ? `synthesizing ${i + 1}/${chunks.length}…` : "synthesizing…");
+      const ids = textToIds(chunks[i]);
+      pcms.push(synthToPcm(current.bundle, ids));
+    }
+    const total = pcms.reduce((a, p) => a + p.length, 0);
+    const pcm = new Float32Array(total);
+    let off = 0;
+    for (const p of pcms) { pcm.set(p, off); off += p.length; }
     const wall = (performance.now() - t0) / 1000;
     const secs = pcm.length / SR;
 
