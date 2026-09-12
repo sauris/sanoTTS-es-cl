@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Export the sanoTTS web bundle(s) for the es_CL voice.
-#   bash scripts/export_voice_bundle.sh            # full  ~1.5M voice -> web/voices/chilean
-#   bash scripts/export_voice_bundle.sh small      # small ~450k voice -> web/voices/chilean-small
+# Export a sanoTTS web bundle for the es_CL voice.
+#   scripts/export_voice_bundle.sh                 # full  ~1.57M voice, f16 -> web/voices/chilean
+#   scripts/export_voice_bundle.sh small           # small ~340k voice,  f16 -> web/voices/chilean-small
+#   scripts/export_voice_bundle.sh small int8      # small voice as per-tensor int8 (loader dequantizes)
 set -euo pipefail
 REPO=${SANO_REPO:-/mnt/c/Users/kuco/Documents/dev/playgr/sanoTTS}
 RUN="$REPO/artifacts/voices/es_CL/run"
@@ -18,6 +19,7 @@ else
   ACU="$RUN/joint/latent-student.pt"
   DEC="$RUN/joint/decoder-student.pt"
 fi
+WEIGHTS="${2:-f16}"
 
 PYTHONPATH="$REPO/tools" "$PY" "$REPO/tools/export_voice_bundle.py" \
   --key "$KEY" \
@@ -27,4 +29,4 @@ PYTHONPATH="$REPO/tools" "$PY" "$REPO/tools/export_voice_bundle.py" \
   --acoustic-checkpoint "$ACU" \
   --decoder-checkpoint "$DEC" \
   --out-dir "$REPO/web/voices/$KEY" \
-  --weights f16
+  --weights "$WEIGHTS"

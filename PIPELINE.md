@@ -234,6 +234,26 @@ LISTEN — expect a modest loss of high-frequency detail and occasional
 duration wobble vs the 1.5M voice. Then bundle-export with the small
 checkpoints (§7) under a distinct key (`chilean-small`).
 
+### int8 storage (optional, half the download again)
+
+The runtime does float math, but the *download* can be int8: the exporter
+quantizes each tensor symmetrically (scale = max|w|/127, exported into
+`meta.json` as `front_scales`/`dec_scales` in slot order) and the loader
+dequantizes to the same float32 blob as always:
+
+```bash
+scripts/export_voice_bundle.sh small int8     # 681 KB -> 333 KB
+```
+
+Measured on the 340k es_CL voice (same 16 held-out sentences, wasm-rendered,
+Whisper small): CER 0.125 int8 vs 0.148 f16 — flat; WER 0.42 vs 0.35 — the
+16-sentence WER is noisy (±2-3 word errors), so gate on CER and your ears.
+Files: `front_i8.bin`/`dec_i8.bin`, `weights: "int8"` in meta.json. The
+browser loader (`web/index.html widenInt8`) and the node gates both handle
+f32/f16/int8 transparently. Keep the f16 export alongside for A/B before
+committing to int8 — that is exactly what `scripts/int8_quality_gate.sh`
+automates (export both, render, RMS-diff, re-score).
+
 ## 6. G2P
 
 The browser phonemizer is a wasm espeak-ng (`web/snt_g2p.*`) driven by

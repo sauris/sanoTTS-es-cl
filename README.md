@@ -25,7 +25,7 @@ Everything here is scriptable and re-runnable for **any language / speaker**
 |---|---|---|
 | `es_CL-huemul-medium.onnx` | 63 MB | Piper teacher, UTMOS val_mos 3.46 |
 | sanoTTS `chilean` bundle | 3.1 MB | fp16, 1,569,164 params |
-| sanoTTS `chilean-small` bundle | 681 KB | fp16, 340,488 params, ~20× realtime |
+| sanoTTS `chilean-small` bundle | 333 KB | **int8**, 340,488 params, ~20× realtime |
 | piper contribution dir | 61 MB | `es/CL/huemul/medium` for rhasspy/piper-voices |
 
 `samples/` has the same eight sentences rendered three ways each
@@ -65,6 +65,20 @@ reproducible from a public repo.
 Equally: **piper1-gpl** (OHF-Voice) for the teacher training stack, the
 espeak-ng project for phonemization, Google's crowdsource team for the
 SLR71 dataset, and the Tatoeba community for supplemental text.
+
+## Try it in your browser (no build)
+
+```bash
+cd demo
+./setup.sh /path/to/sanoTTS/web      # copies the ~4.3 MB wasm runtime once
+python3 -m http.server 8178          # then open http://localhost:8178
+```
+
+The page loads the committed voice bundles (`chilean-small` f16 at 681 KB,
+`chilean-small-int8` at 333 KB), phonemizes your text with the espeak-ng
+es-419 wasm and synthesizes live — type anything, press Speak, or download
+the WAV. Add more bundles (e.g. the 1.57M `chilean`) by copying
+`web/voices/<key>` into `demo/voices/`.
 
 ## Layout
 

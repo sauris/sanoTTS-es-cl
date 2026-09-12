@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>es_CL voice playground</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, -apple-system, sans-serif; max-width: 46rem; margin: 2.5rem auto; padding: 0 1.25rem; }
+  h1 { font-size: 1.35rem; margin: 0 0 0.25rem; }
+  p.sub { color: #666; margin: 0 0 1.25rem; }
+  textarea { width: 100%; box-sizing: border-box; min-height: 7rem; font-size: 1.05rem; padding: 0.75rem; border-radius: 8px; border: 1px solid #9992; }
+  .row { display: flex; gap: 0.6rem; align-items: center; margin: 0.75rem 0; flex-wrap: wrap; }
+  select, button { font-size: 1rem; padding: 0.5rem 0.9rem; border-radius: 8px; border: 1px solid #9992; }
+  button#speak { background: #2a63d4; color: #fff; border: none; font-weight: 600; }
+  button#speak:disabled { opacity: 0.5; }
+  #status { color: #666; min-height: 1.3em; }
+  audio { width: 100%; margin-top: 0.75rem; display: none; }
+  .err { color: #b03030; }
+  code { background: #8881; padding: 0.1em 0.35em; border-radius: 4px; }
+</style>
+</head>
+<body>
+<h1>es_CL voice playground</h1>
+<p class="sub">Piper-distilled Chilean Spanish voices running entirely in your browser
+(WebAssembly, no server). Served by this repo — see <code>demo/setup.sh</code> for the
+one-time runtime copy.</p>
+
+<div class="row">
+  <label for="voice">Voice:</label>
+  <select id="voice"></select>
+  <span id="sizes"></span>
+</div>
+<textarea id="text" spellcheck="false">¡Ya po! Soy una voz chilena que vive en tu navegador, ¿cachái?</textarea>
+<div class="row">
+  <button id="speak">Speak</button>
+  <button id="download" disabled>Download WAV</button>
+  <span id="status">loading…</span>
+</div>
+<audio id="player" controls></audio>
+
+<script type="module">
+const VOICE_KEYS = [
+  "chilean",
+  "chilean-small",
+  "chilean-small-int8",
+];
+const DEFAULT_TEXT = {
+  "chilean": "¡Ya po! Soy una voz chilena que vive en tu navegador, ¿cachái?",
+  "chilean-small": "¡Ya po! Soy una voz chilena que vive en tu navegador, ¿cachái?",
+  "chilean-small-int8": "¡Ya po! Soy una voz chilena que vive en tu navegador, ¿cachái?",
+};
+const SR = 22050;
+const MAX_IDS = 1024;
+const OUT_CAP = 22050 * 30;
+
+const $ = (id) => document.getElementById(id);
+const status = (msg, err) => { $("status").textContent = msg; $("status").className = err ? "err" : ""; };
+
+// ---- bundle loading (f32 / f16 / int8), mirrors web/index.html -------------
+function widenF16(bytes, dims) {
+  const head = Number(dims.meta_bytes), n = Number(dims.weight_floats);
+  if (bytes.length !== head + 2 * n) throw new Error(`f16 blob is ${bytes.length}, meta implies ${head + 2 * n}`);
+  const out = new Uint8Array(head + 4 * n);
+  out.set(bytes.subarray(0, head), 0);
+  const src = new DataView(bytes.buffer, bytes.byteOffset + head, 2 * n);
+  const dst = new DataView(out.buffer, head, 4 * n);
+  for (let i = 0; i < n; i++) {
+    const b = src.getUint16(i * 2, true);
+    const exp = (b >> 10) & 0x1f, frac = b & 0x3ff, sign = (b & 0x8000) ? -1 : 1;
+    let v;
+    if (exp === 0) v = sign * frac * 5.960464477539063e-8;
+    else if (exp === 31) v = frac ? NaN : sign * Infinity;
+    else v = sign * Math.pow(2, exp - 25) * (1024 + frac);
+    dst.setFloat32(i * 4, v, true);
+  }
+  return out;
+}
+
+function widenInt8(bytes, dims, scales) {
+  const head = Number(dims.meta_bytes), n = Number(dims.weight_floats);
+  const sizes = dims.sizes;
+  if (bytes.length !== head + n) throw new Error(`int8 blob is ${bytes.length}, meta implies ${head + n}`);
+  if (!Array.isArray(scales) || !Array.isArray(sizes) || scales.length !== sizes.length)
+    throw new Error("int8 blob: meta scales/sizes missing or mismatched");
+  const out = new Uint8Array(head + 4 * n);
+  out.set(bytes.subarray(0, head), 0);
+  const src = new Int8Array(bytes.buffer, bytes.byteOffset + head, n);
+  const dst = new DataView(out.buffer, head, 4 * n);
+  let off = 0;
+  for (let t = 0; t < sizes.length; t++) {
+    for (let j = 0; j < sizes[t]; j++) dst.setFloat32((off + j) * 4, scales[t] * src[off + j], true);
+    off += sizes[t];
+  }
+  return out;
+}
+
+async function loadWeight(dir, meta, which) {
+  const fmt = meta.weights || "f32";
+  const bytes = new Uint8Array(await (await fetch(`${dir}/${meta[which] || `${which}_${fmt}.bin`}`)).arrayBuffer());
+  const dims = which === "front" ? meta.front_dims : meta.dec_dims;
+  const head = Number(dims.meta_bytes), n = Number(dims.weight_floats);
+  if (fmt === "f32") {
+    if (bytes.length !== head + 4 * n) throw new Error(`${which}: blob size mismatch`);
+    return bytes;
+  }
+  let out;
+  if (fmt === "f16") {
+    if (bytes.length !== head + 2 * n) throw new Error(`${which}: blob size mismatch`);
+    out = widenF16(bytes, dims);
+  } else if (fmt === "int8") {
+    const scales = which === "front" ? meta.front_scales : meta.dec_scales;
+    if (bytes.length !== head + n) throw new Error(`${which}: blob size mismatch`);
+    out = widenInt8(bytes, dims, scales);
+  } else throw new Error(`${which}: unknown weight format ${fmt}`);
+  return out;
+}
+
+async function loadVoice(key) {
+  const dir = `voices/${key}`;
+  const meta = await (await fetch(`${dir}/meta.json`)).json();
+  const [front, dec] = await Promise.all([loadWeight(dir, meta, "front"), loadWeight(dir, meta, "dec")]);
+  return { meta, front, dec };
+}
+
+// ---- wasm chains -----------------------------------------------------------
+const SaanoVoice = (await import("./snt_voice.js")).default;
+const SaanoG2P = (await import("./snt_g2p.js")).default;
+const V = await SaanoVoice();
+const G = await SaanoG2P({ locateFile: (f) => `./${f}` });
+
+const setVoice = G.cwrap("snt_g2p_set_voice", "number", ["string", "number"]);
+const g2pIds = G.cwrap("snt_g2p_text_to_ids", "number", ["number", "number", "number"]);
+const synth = V.cwrap("snt_voice_synthesize", "number",
+  ["number", "number", "number", "number", "number", "number", "number"]);
+
+function textToIds(text) {
+  const nBytes = G.lengthBytesUTF8(text) + 1;
+  const textP = G._malloc(nBytes);
+  G.stringToUTF8(text, textP, nBytes);
+  const outP = G._malloc(MAX_IDS * 4);
+  const n = g2pIds(textP, outP, MAX_IDS);
+  G._free(textP);
+  if (n <= 0) throw new Error(`g2p failed: rc=${n}`);
+  const ids = Int32Array.from(G.HEAP32.subarray(outP >> 2, (outP >> 2) + n));
+  G._free(outP);
+  return ids;
+}
+
+function synthToPcm(bundle, ids) {
+  const idsBytes = new Uint8Array(ids.buffer, ids.byteOffset, ids.byteLength);
+  const idsP = V._malloc(idsBytes.length);
+  V.HEAPU8.set(idsBytes, idsP);
+  const outP = V._malloc(OUT_CAP * 4);
+  const n = synth(bundle.front.p, bundle.dec.p, idsP, ids.length, bundle.meta.length_scale, outP, OUT_CAP);
+  V._free(idsP);
+  if (n <= 0) { V._free(outP); throw new Error("synthesis failed"); }
+  const pcm = V.HEAPF32.slice(outP >> 2, (outP >> 2) + n);
+  V._free(outP);
+  return pcm;
+}
+
+// ---- ui --------------------------------------------------------------------
+let current = null;   // {bundle, audioCtx, pcm}
+
+function toWav(f32, sr) {
+  const n = f32.length;
+  const buf = new ArrayBuffer(44 + n * 2);
+  const dv = new DataView(buf);
+  const wstr = (off, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(off + i, s.charCodeAt(i)); };
+  wstr(0, "RIFF"); dv.setUint32(4, 36 + n * 2, true); wstr(8, "WAVE");
+  wstr(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+  dv.setUint32(24, sr, true); dv.setUint32(28, sr * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+  wstr(36, "data"); dv.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) {
+    const v = Math.max(-1, Math.min(1, f32[i]));
+    dv.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true);
+  }
+  return new Blob([buf], { type: "audio/wav" });
+}
+
+async function speak() {
+  const key = $("voice").value;
+  $("speak").disabled = true;
+  try {
+    if (!current || current.key !== key) {
+      status(`loading ${key}…`);
+      const bundle = await loadVoice(key);
+      const front = { p: V._malloc(bundle.front.length), len: bundle.front.length };
+      const dec = { p: V._malloc(bundle.dec.length), len: bundle.dec.length };
+      V.HEAPU8.set(bundle.front, front.p);
+      V.HEAPU8.set(bundle.dec, dec.p);
+      current = { key, bundle, front, dec, audioCtx: new AudioContext({ sampleRate: SR }) };
+    }
+    const text = $("text").value.trim();
+    if (!text) throw new Error("type a sentence first");
+    status("synthesizing…");
+    const t0 = performance.now();
+    const ids = textToIds(text);
+    const pcm = synthToPcm(current, ids);
+    const wall = (performance.now() - t0) / 1000;
+    const secs = pcm.length / SR;
+
+    const ctx = current.audioCtx;
+    const buffer = ctx.createBuffer(1, pcm.length, SR);
+    buffer.copyToChannel(pcm, 0);
+    $("player").src = URL.createObjectURL(toWav(pcm, SR));
+    $("player").style.display = "block";
+    $("download").disabled = false;
+    $("download").onclick = () => {
+      const a = document.createElement("a");
+      a.href = $("player").src;
+      a.download = "chilean.wav";
+      a.click();
+    };
+    await ctx.resume();
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.connect(ctx.destination);
+    src.start();
+    status(`${secs.toFixed(2)}s of audio in ${wall.toFixed(2)}s (${(secs / wall).toFixed(1)}× realtime) — speaking`);
+  } catch (e) {
+    status(e.message || String(e), true);
+  } finally {
+    $("speak").disabled = false;
+  }
+}
+
+// populate the voice dropdown: list every bundle that is actually present
+const sel = $("voice");
+const found = [];
+await Promise.all(VOICE_KEYS.map(async (key) => {
+  try {
+    const meta = await (await fetch(`voices/${key}/meta.json`)).json();
+    found.push({ key, params: meta.params_note || key });
+    const opt = document.createElement("option");
+    opt.value = key;
+    opt.textContent = key;
+    sel.appendChild(opt);
+    if (DEFAULT_TEXT[key]) $("text").value = DEFAULT_TEXT[key];
+  } catch { /* bundle not present in this checkout */ }
+}));
+if (!found.length) {
+  status("no voice bundles under demo/voices/ — run demo/setup.sh and re-copy, " +
+         "or copy a bundle (e.g. web/voices/chilean-small-int8) into demo/voices/", true);
+} else {
+  status("ready — type and press Speak");
+}
+$("speak").addEventListener("click", speak);
+$("text").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) speak();
+});
+$("voice").addEventListener("change", () => {
+  const t = DEFAULT_TEXT[sel.value];
+  if (t) $("text").value = t;
+});
+</script>
+</body>
+</html>
