@@ -9,9 +9,9 @@ PY="$HOME/venvs/saanotts/bin/python"
 
 if [ "${1:-full}" = "small" ]; then
   KEY=chilean-small
-  DUR="$RUN/duration-small/duration-student.pt"
-  ACU="$RUN/joint-small/latent-student.pt"
-  DEC="$RUN/joint-small/decoder-student.pt"
+  DUR="$RUN-small/duration/duration-student.pt"
+  ACU="$RUN-small/joint/latent-student.pt"
+  DEC="$RUN-small/joint/decoder-student.pt"
 else
   KEY=chilean
   DUR="$RUN/duration/duration-student.pt"

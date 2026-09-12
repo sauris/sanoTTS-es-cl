@@ -24,9 +24,33 @@ Everything here is scriptable and re-runnable for **any language / speaker**
 | artifact | size | note |
 |---|---|---|
 | `es_CL-huemul-medium.onnx` | 63 MB | Piper teacher, UTMOS val_mos 3.46 |
-| sanoTTS `chilean` bundle | ~3.1 MB | fp16, ~1.5M params |
-| sanoTTS `chilean-small` bundle | ~0.9 MB | fp16, ~450k params |
+| sanoTTS `chilean` bundle | 3.1 MB | fp16, 1,569,164 params |
+| sanoTTS `chilean-small` bundle | 681 KB | fp16, 340,488 params, ~20× realtime |
 | piper contribution dir | 61 MB | `es/CL/huemul/medium` for rhasspy/piper-voices |
+
+`samples/` has the same eight sentences rendered three ways each
+(`*_teacher.wav` = the Piper teacher, `*_student_full.wav` = the 1.57M
+distilled voice, `*_student_small.wav` = the 340k voice). Listen there
+before anything else.
+
+Distillation gate (SCOREQ no-reference, 64 held-out rows, synthetic domain):
+
+| lane | SCOREQ | Δ vs teacher |
+|---|---|---|
+| teacher (full piper ONNX) | 3.97 | — |
+| teacher latent → cut piper decoder | 3.97 | **0.00** (exact round-trip) |
+| teacher latent → student decoder | 3.37 | −0.60 |
+| full student (student duration + acoustic) | 3.15 | −0.83 |
+
+Browser chain: both bundles pass `verify_voice_node.mjs` through the real
+wasm runtime (finite audio, no silence; 1.6× realtime at 1.57M, ~20× at
+340k). G2P parity gates are 20/20 exact for `es` and `es-419`, plus
+en/de/fr/vi/zh blast-radius checks after the espeak-ng upgrade.
+
+Held-out intelligibility (16 reserved Tatoeba sentences, rendered by the
+wasm runtime, Whisper small): **CER 0.021, WER 0.082** — the Castilian
+`spanish` voice measures 0.147 WER under the same protocol family
+(`experiments/evidence/es-cl-tatoeba-20260912.json` in the sanoTTS repo).
 
 ## Layout
 
