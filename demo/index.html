@@ -200,6 +200,12 @@ function toWav(f32, sr) {
   return new Blob([buf], { type: "audio/wav" });
 }
 
+function mallocBytes(bytes) {
+  const p = V._malloc(bytes.length);
+  V.HEAPU8.set(bytes, p);
+  return { p, len: bytes.length };
+}
+
 async function speak() {
   if (!g2pIds || !synth || !V) {
     status("runtime not ready — see the message above", true);
@@ -211,12 +217,14 @@ async function speak() {
   try {
     if (!current || current.key !== key) {
       status(`loading ${key}…`);
-      const bundle = await loadVoice(key);
-      const front = { p: V._malloc(bundle.front.length), len: bundle.front.length };
-      const dec = { p: V._malloc(bundle.dec.length), len: bundle.dec.length };
-      V.HEAPU8.set(bundle.front, front.p);
-      V.HEAPU8.set(bundle.dec, dec.p);
-      current = { key, bundle, front, dec, audioCtx: new AudioContext({ sampleRate: SR }) };
+      const raw = await loadVoice(key);            // {meta, front: bytes, dec: bytes}
+      const bundle = {
+        meta: raw.meta,
+        front: mallocBytes(raw.front),
+        dec: mallocBytes(raw.dec),
+      };
+      if (current) { V._free(current.bundle.front.p); V._free(current.bundle.dec.p); }
+      current = { key, bundle, audioCtx: new AudioContext({ sampleRate: SR }) };
     }
     const text = $("text").value.trim();
     if (!text) throw new Error("type a sentence first");
