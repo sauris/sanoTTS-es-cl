@@ -50,6 +50,9 @@ const VOICE_KEYS = [
   "chilean-small",
   "chilean-small-int8",
 ];
+// the 1.57M voice is the reference quality; the two 340k students are the
+// size experiments and garble some sentence tails (see README results)
+const PREFERRED = "chilean";
 const DEFAULT_TEXT = {
   "chilean": "¡Ya po! Soy una voz chilena que vive en tu navegador, ¿cachái?",
   "chilean-small": "¡Ya po! Soy una voz chilena que vive en tu navegador, ¿cachái?",
@@ -320,7 +323,9 @@ await Promise.all(VOICE_KEYS.map(async (key) => {
   } catch { /* bundle not present in this checkout */ }
 }));
 if (found.length) {
-  sel.value = wantVoice && found.includes(wantVoice) ? wantVoice : found[0];
+  sel.value = wantVoice && found.includes(wantVoice)
+    ? wantVoice
+    : (found.includes(PREFERRED) ? PREFERRED : found[0]);
   $("text").value = wantText || DEFAULT_TEXT[sel.value] || $("text").value;
 } else {
   status("no voice bundles under demo/voices/ — run demo/setup.sh and re-copy, " +
