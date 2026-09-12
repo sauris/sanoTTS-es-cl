@@ -52,6 +52,20 @@ wasm runtime, Whisper small): **CER 0.021, WER 0.082** — the Castilian
 `spanish` voice measures 0.147 WER under the same protocol family
 (`experiments/evidence/es-cl-tatoeba-20260912.json` in the sanoTTS repo).
 
+## Credits
+
+This recipe exists because the sanoTTS project (**Ampixa/sanoTTS**) is
+excellent — a research-grade neural TTS that runs in the browser and on
+microcontrollers, with clear docs and an honest evaluation culture. The
+distillation pipeline, the wasm runtime and the bundle format are all its
+work; this repo only drove it through a language it hadn't met yet, and
+reconstructed a handful of uncommitted pipeline tools so the whole thing is
+reproducible from a public repo.
+
+Equally: **piper1-gpl** (OHF-Voice) for the teacher training stack, the
+espeak-ng project for phonemization, Google's crowdsource team for the
+SLR71 dataset, and the Tatoeba community for supplemental text.
+
 ## Layout
 
 ```
