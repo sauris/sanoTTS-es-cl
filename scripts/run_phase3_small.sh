@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Reduced-size (~450k param) es_CL variant: reuses the TEACHER packs and the
 # signature pack from the main run (student-size-independent) and retrains
-# only the students smaller. See PIPELINE.md §5 for the parameter arithmetic.
+# only the students smaller. See PIPELINE.md Â§5 for the parameter arithmetic.
 #
 #   bash scripts/run_phase3_small.sh
 set -euo pipefail
@@ -82,7 +82,7 @@ fi
 
 step "s11 package-small"
 "$PY" "$REPO/tools/export_roota_self_contained_package.py" \
-  --package-name chilean-small --language es_CL --voice es_CL-huemul-small \
+  --package-name huemul-small --language es_CL --voice es_CL-huemul-small \
   --acoustic-checkpoint "$SMALL/joint/latent-student.pt" \
   --duration-checkpoint "$SMALL/duration/duration-student.pt" \
   --decoder-checkpoint "$SMALL/joint/decoder-student.pt" \

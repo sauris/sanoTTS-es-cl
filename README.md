@@ -6,7 +6,7 @@ Chilean Spanish (es_CL) text-to-speech, end to end:
    Chilean Spanish corpus (OpenSLR SLR71, male speaker `clm_02121`,
    ~18.8 min), phonemized with `es-419` (Latin American Spanish: seseo +
    yeísmo, which matches the Chilean accent).
-2. **`chilean`** — a distilled ~1.5M-parameter sanoTTS browser voice built
+2. **`huemul`** — a distilled ~1.5M-parameter sanoTTS browser voice built
    from that teacher with the Root-A recipe (duration student + contextual
    latent student + piperlite decoder student), shipped as a
    `front_f16.bin`/`dec_f16.bin`/`meta.json` bundle for the sanoTTS wasm
@@ -30,12 +30,12 @@ press Speak, download the WAV. URL parameters are supported, so you can
 share links that preload and even start playing:
 
 - `?text=¡Ya po!+Hola+a+todos` — preload the textarea
-- `?voice=chilean-small-int8` — pick the voice
+- `?voice=huemul-small-int8` — pick the voice
 - `?autoplay=1` — speak as soon as the model loads (if the browser blocks
   autoplay, the Speak button takes one tap)
 
 All together:
-`https://sauris.github.io/sanoTTS-es-cl/?voice=chilean-small-int8&autoplay=1&text=...`
+`https://sauris.github.io/sanoTTS-es-cl/?voice=huemul-small-int8&autoplay=1&text=...`
 
 (GitHub Pages is enabled in *Settings → Pages → GitHub Actions*, served by
 [.github/workflows/pages.yml](.github/workflows/pages.yml) from the
@@ -48,8 +48,8 @@ All together:
 | artifact | size | note |
 |---|---|---|
 | `es_CL-huemul-medium.onnx` | 63 MB | Piper teacher, UTMOS val_mos 3.46 |
-| sanoTTS `chilean` bundle | 3.1 MB | fp16, 1,569,164 params |
-| sanoTTS `chilean-small` bundle | 333 KB | **int8**, 340,488 params, ~20× realtime |
+| sanoTTS `huemul` bundle | 3.1 MB | fp16, 1,569,164 params |
+| sanoTTS `huemul-small` bundle | 333 KB | **int8**, 340,488 params, ~20× realtime |
 | piper contribution dir | 61 MB | `es/CL/huemul/medium` for rhasspy/piper-voices |
 
 `samples/` has the same eight sentences rendered three ways each
@@ -101,8 +101,8 @@ python3 -m http.server 8178          # then open http://localhost:8178
 
 `demo/setup.sh` is only needed to refresh the wasm runtime from a newer
 sanoTTS checkout (`demo/setup.sh /path/to/sanoTTS/web`). The page loads the
-committed voice bundles (`chilean` 1.57M, `chilean-small` f16 at 681 KB,
-`chilean-small-int8` at 333 KB), phonemizes your text with the espeak-ng
+committed voice bundles (`huemul` 1.57M, `huemul-small` f16 at 681 KB,
+`huemul-small-int8` at 333 KB), phonemizes your text with the espeak-ng
 es-419 wasm and synthesizes live — type anything, press Speak, or download
 the WAV. Two lessons from debugging this page live are written up in
 [PIPELINE.md §10](PIPELINE.md): a custom player MUST call

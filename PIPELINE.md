@@ -167,7 +167,7 @@ bash scripts/run_phase3.sh
 #     --teacher-config artifacts/voices/es_CL/huemul-medium/es_CL-huemul-medium.onnx.json \
 #     --text artifacts/data/es_cl/distill_corpus.jsonl \
 #     --out-dir artifacts/voices/es_CL/run \
-#     --package-name chilean --device cuda
+#     --package-name huemul --device cuda
 ```
 
 Stages (all resumable — each writes a done-file and is skipped on re-run):
@@ -233,7 +233,7 @@ post: c3*7 + 1
 noticeably better if you can afford ~650k total. Render the gate lanes and
 LISTEN — expect a modest loss of high-frequency detail and occasional
 duration wobble vs the 1.5M voice. Then bundle-export with the small
-checkpoints (§7) under a distinct key (`chilean-small`).
+checkpoints (§7) under a distinct key (`huemul-small`).
 
 ### int8 storage (optional, half the download again)
 
@@ -310,11 +310,11 @@ sentence-split framing (test harness) or version skew, never an id-map gap.
 
 ```bash
 python tools/export_voice_bundle.py \
-  --key chilean --espeak-voice es-419 --g2p-voice-slot 11 \
+  --key huemul --espeak-voice es-419 --g2p-voice-slot 11 \
   --duration-checkpoint  run/duration/duration-student.pt \
   --acoustic-checkpoint  run/joint/latent-student.pt \
   --decoder-checkpoint   run/joint/decoder-student.pt \
-  --out-dir web/voices/chilean
+  --out-dir web/voices/huemul
 ```
 
 The blob format (documented in the tool's docstring, mirrored from
@@ -326,8 +326,8 @@ blob — the loader verifies it) and the `weights: "f16"` opt-in.
 
 Then in `web/index.html`:
 
-- add a `VOICES` entry `{key:"chilean", label:"Chilean", flag:"🇨🇱", ...}`
-- add `DEFAULT_TEXT.chilean` (a sentence that shows off the accent)
+- add a `VOICES` entry `{key:"huemul", label:"Chilean", flag:"🇨🇱", ...}`
+- add `DEFAULT_TEXT.huemul` (a sentence that shows off the accent)
 - add the mascot/picker entry
 
 Serve locally (`?voices=local` pins the local host) and click-test every
@@ -409,7 +409,7 @@ Only §2 and §3 change:
 2. Base checkpoint: `es/es_ES/sharvard/medium/epoch=4899-step=215600.ckpt`
    (the only female es_ES medium checkpoint in rhasspy/piper-checkpoints).
 3. Everything downstream is byte-identical in shape: distillation, g2p
-   (`es-419` again), bundle export with `--key chilean-f` (or a name like
+   (`es-419` again), bundle export with `--key huemul-f` (or a name like
    `tenca`), site entry with a different mascot, evidence run.
 4. Budget ~2.5 h wall-clock for the teacher + ~2 h for the 1.5M distill
    (or ~40 min for the small variant).
@@ -455,7 +455,7 @@ walkthrough). Three voices, one GPU, one detached master loop:
 | vueltiao | es_CO | SLR72 male com_06136 (~18.1 min) | es_ES-davefx | 3.25 @ ep 894 | 0.053 / 0.193 |
 | chande | es_CO | SLR72 female cof_02484 (~19.8 min) | es_ES-sharvard | 3.72 @ ep 814 | 0.022 / 0.127 |
 
-(chilean/huemul for comparison: val_mos 3.46, CER 0.021 / WER 0.082 — the
+(huemul for comparison: val_mos 3.46, CER 0.021 / WER 0.082 — the
 16-sentence WER is noisy, gate on CER + ears. Names follow the endemic-thing
 convention; the two Colombian voices are named from the Sincelejo savannas:
 the chandé dance and the sombrero vueltiao woven in San Andrés de Sotavento.)
