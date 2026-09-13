@@ -460,6 +460,12 @@ walkthrough). Three voices, one GPU, one detached master loop:
 convention; the two Colombian voices are named from the Sincelejo savannas:
 the chandé dance and the sombrero vueltiao woven in San Andrés de Sotavento.)
 
+Small (~340k) variants (`scripts/run_small_pipeline.sh`, reusing each main
+run's packs via `run_phase3_small_voice.sh` + `export_bundle_voice.sh small`):
+copihue-small CER 0.034 / WER 0.091, vueltiao-small CER 0.094 / WER 0.270,
+chande-small CER 0.075 / WER 0.253 — all better than the huemul-small
+reference (0.125 / 0.42) on the same 16 sentences; ~15 min per voice.
+
 Per voice (~1.9 h wall on the 4070): finetune 1000 epochs ≈ 105 min →
 ONNX export + audition render ≈ 15 s → distill s1–s11 ≈ 45 min → bundle
 export + wasm-render evidence ≈ 30 s. All stages resumable via
