@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>es_CL voice playground</title>
+<title>Chilean & Colombian Spanish voice playground</title>
 <style>
   :root { color-scheme: light dark; }
   body { font-family: system-ui, -apple-system, sans-serif; max-width: 46rem; margin: 2.5rem auto; padding: 0 1.25rem; }
@@ -21,10 +21,11 @@
 </style>
 </head>
 <body>
-<h1>es_CL voice playground</h1>
-<p class="sub">Piper-distilled Chilean Spanish voices running entirely in your browser
-(WebAssembly, no server). Served by this repo — see <code>demo/setup.sh</code> for the
-one-time runtime copy. <span style="opacity:.6">demo build 2026-09-12.4</span></p>
+<h1>Chilean &amp; Colombian Spanish voice playground</h1>
+<p class="sub">Piper-distilled Chilean (es_CL) and Colombian (es_CO) Spanish voices running
+entirely in your browser (WebAssembly, no server). Served by this repo — see
+<code>demo/setup.sh</code> for the one-time runtime copy.
+<span style="opacity:.6">demo build 2026-09-13.1</span></p>
 
 <div class="row">
   <label for="voice">Voice:</label>
@@ -51,6 +52,9 @@ const VOICE_KEYS = [
   "vueltiao",
   "chande",
   "huemul-small",
+  "copihue-small",
+  "vueltiao-small",
+  "chande-small",
   "huemul-small-int8",
 ];
 // the 1.57M voice is the reference quality; the two 340k students are the
@@ -62,6 +66,9 @@ const DEFAULT_TEXT = {
   "vueltiao": "Échele cuento, soy Vueltiao, puro acento costeño desde tu navegador.",
   "chande": "¡Qué nota! Soy Chande, voz de las sabanas de Sucre, directo a tu navegador.",
   "huemul-small": "¡Ya po! Soy una voz chilena que vive en tu navegador, ¿cachái?",
+  "copihue-small": "¡Hola! Soy la Copihue, la flor nacional de Chile, y también una voz que vive en tu navegador.",
+  "vueltiao-small": "Échele cuento, soy Vueltiao, puro acento costeño desde tu navegador.",
+  "chande-small": "¡Qué nota! Soy Chande, voz de las sabanas de Sucre, directo a tu navegador.",
   "huemul-small-int8": "¡Ya po! Soy una voz chilena que vive en tu navegador, ¿cachái?",
 };
 const SR = 22050;
@@ -305,7 +312,7 @@ async function speak() {
     $("download").onclick = () => {
       const a = document.createElement("a");
       a.href = $("player").src;
-      a.download = "chilean.wav";
+      a.download = `${key}.wav`;
       a.click();
     };
     const src = audioCtx.createBufferSource();
@@ -416,11 +423,13 @@ if (params.get("selftest")) {
     }
     const pcmSha = await shaHex(pcm.buffer);
     const wav = toWav(pcm, SR);
-    const u8 = new Uint8Array(wav);
+    // a Blob is not byte-viewable synchronously; drain it properly or u8
+    // comes out empty and wavB64 is ""
+    const u8 = new Uint8Array(await wav.arrayBuffer());
     let bin = "";
     for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
     const report = {
-      build: "2026-09-12.5",
+      build: "2026-09-13.1",
       key: selfKey,
       weights: bundle.meta.weights,
       length_scale: bundle.meta.length_scale,

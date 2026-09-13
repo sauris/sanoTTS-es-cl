@@ -1,16 +1,22 @@
 # sanoTTS-es-cl
 
-Chilean Spanish (es_CL) text-to-speech, end to end:
+Chilean and Colombian Spanish text-to-speech, end to end:
 
-1. **`es_CL-huemul-medium`** — a Piper VITS voice fine-tuned on Google's
-   Chilean Spanish corpus (OpenSLR SLR71, male speaker `clm_02121`,
-   ~18.8 min), phonemized with `es-419` (Latin American Spanish: seseo +
-   yeísmo, which matches the Chilean accent).
-2. **`huemul`** — a distilled ~1.5M-parameter sanoTTS browser voice built
-   from that teacher with the Root-A recipe (duration student + contextual
-   latent student + piperlite decoder student), shipped as a
-   `front_f16.bin`/`dec_f16.bin`/`meta.json` bundle for the sanoTTS wasm
-   runtime, plus a smaller **~450k-parameter** variant.
+1. **Piper teachers** — fine-tuned on Google's crowdsource corpora with the
+   `es-419` Latin-American espeak voice (seseo + yeísmo, matching both
+   accents):
+   - `es_CL-huemul-medium` — SLR71, male `clm_02121` (~18.8 min), UTMOS 3.46
+   - `es_CL-copihue-medium` — SLR71, female `clf_04310` (~16.6 min), UTMOS 3.54
+   - `es_CO-vueltiao-medium` — SLR72, male `com_06136` (~18.1 min), UTMOS 3.25
+   - `es_CO-chande-medium` — SLR72, female `cof_02484` (~19.8 min), UTMOS 3.72
+2. **Eight distilled sanoTTS browser voices** — the Root-A recipe (duration
+   student + contextual latent student + piperlite decoder student) at two
+   sizes per teacher: a ~1.57M-param voice and a ~340k-param variant,
+   shipped as `front_f16.bin`/`dec_f16.bin`/`meta.json` bundles for the
+   sanoTTS wasm runtime (plus an int8 `huemul-small-int8` at 333 KB).
+   Voice names follow the endemic-thing convention; the Colombian pair is
+   named from the Sincelejo savannas — the *chandé* folk dance and the
+   sombrero *vueltiao* woven in San Andrés de Sotavento, Sucre.
 3. The browser espeak-ng G2P module (`web/snt_g2p.*`) upgraded to the exact
    espeak-ng version piper 1.8 uses, with the `es-419` voice added and an
    exact-parity gate (`20/20` sentences vs python piper, and `en/de/fr/vi/zh`
@@ -37,6 +43,13 @@ share links that preload and even start playing:
 All together:
 `https://sauris.github.io/sanoTTS-es-cl/?voice=huemul-small-int8&autoplay=1&text=...`
 
+Per-voice examples (every key below also works with `-small` appended, at a
+third of the download):
+
+- Chilean: `?voice=copihue&autoplay=1&text=¡Hola!+Soy+la+Copihue,+la+flor+nacional+de+Chile`
+- Colombian: `?voice=chande&autoplay=1&text=¡Qué+nota!+Soy+Chande,+voz+de+las+sabanas+de+Sucre`
+- Colombian, small: `?voice=vueltiao-small&autoplay=1&text=Échele+cuento,+soy+Vueltiao`
+
 (GitHub Pages is enabled in *Settings → Pages → GitHub Actions*, served by
 [.github/workflows/pages.yml](.github/workflows/pages.yml) from the
 `demo/` folder — the same pattern the main sanoTTS site uses for
@@ -48,9 +61,13 @@ All together:
 | artifact | size | note |
 |---|---|---|
 | `es_CL-huemul-medium.onnx` | 63 MB | Piper teacher, UTMOS val_mos 3.46 |
-| sanoTTS `huemul` bundle | 3.1 MB | fp16, 1,569,164 params |
-| sanoTTS `huemul-small` bundle | 333 KB | **int8**, 340,488 params, ~20× realtime |
-| piper contribution dir | 61 MB | `es/CL/huemul/medium` for rhasspy/piper-voices |
+| `es_CL-copihue-medium.onnx` | 63 MB | Piper teacher, UTMOS val_mos 3.54 |
+| `es_CO-vueltiao-medium.onnx` | 63 MB | Piper teacher, UTMOS val_mos 3.25 |
+| `es_CO-chande-medium.onnx` | 63 MB | Piper teacher, UTMOS val_mos 3.72 |
+| sanoTTS `huemul` / `copihue` / `vueltiao` / `chande` bundles | 3.1 MB each | fp16, 1,569,164 params |
+| sanoTTS `*-small` bundles | 682 KB each | fp16, 340,488 params |
+| sanoTTS `huemul-small` bundle (int8) | 333 KB | **int8**, 340,488 params, ~20× realtime |
+| piper contribution dirs | ~61 MB each | `es/CL/{huemul,copihue}/medium`, `es/CO/{vueltiao,chande}/medium` for rhasspy/piper-voices |
 
 `samples/` has the same eight sentences rendered three ways each
 (`*_teacher.wav` = the Piper teacher, `*_student_full.wav` = the 1.57M
@@ -72,9 +89,21 @@ wasm runtime (finite audio, no silence; 1.6× realtime at 1.57M, ~20× at
 en/de/fr/vi/zh blast-radius checks after the espeak-ng upgrade.
 
 Held-out intelligibility (16 reserved Tatoeba sentences, rendered by the
-wasm runtime, Whisper small): **CER 0.021, WER 0.082** — the Castilian
-`spanish` voice measures 0.147 WER under the same protocol family
-(`experiments/evidence/es-cl-tatoeba-20260912.json` in the sanoTTS repo).
+wasm runtime, Whisper small — CER / WER):
+
+| voice | CER | WER | evidence |
+|---|---|---|---|
+| huemul (1.57M) | 0.021 | 0.082 | `experiments/evidence/es-cl-tatoeba-20260912.json` |
+| copihue (1.57M) | 0.039 | 0.196 | `experiments/evidence/copihue-tatoeba-20260913.json` |
+| vueltiao (1.57M) | 0.053 | 0.193 | `experiments/evidence/vueltiao-tatoeba-20260913.json` |
+| chande (1.57M) | 0.022 | 0.127 | `experiments/evidence/chande-tatoeba-20260913.json` |
+| copihue-small (340k) | 0.034 | 0.091 | `experiments/evidence/copihue-small-tatoeba-20260913.json` |
+| vueltiao-small (340k) | 0.094 | 0.270 | `experiments/evidence/vueltiao-small-tatoeba-20260913.json` |
+| chande-small (340k) | 0.075 | 0.253 | `experiments/evidence/chande-small-tatoeba-20260913.json` |
+
+All seven measure under the same protocol family as the Castilian `spanish`
+voice (0.147 WER); the 16-sentence WER is noisy (±2-3 word errors), so gate
+on CER and your ears. Evidence files live in the sanoTTS repo.
 
 ## Credits
 
@@ -101,8 +130,8 @@ python3 -m http.server 8178          # then open http://localhost:8178
 
 `demo/setup.sh` is only needed to refresh the wasm runtime from a newer
 sanoTTS checkout (`demo/setup.sh /path/to/sanoTTS/web`). The page loads the
-committed voice bundles (`huemul` 1.57M, `huemul-small` f16 at 681 KB,
-`huemul-small-int8` at 333 KB), phonemizes your text with the espeak-ng
+committed voice bundles (the four 1.57M voices plus four 340k students and
+the int8 `huemul-small-int8`), phonemizes your text with the espeak-ng
 es-419 wasm and synthesizes live — type anything, press Speak, or download
 the WAV. Two lessons from debugging this page live are written up in
 [PIPELINE.md §10](PIPELINE.md): a custom player MUST call
@@ -146,12 +175,21 @@ bash scripts/package_piper_voice.sh
 ```
 
 Each script has a header comment explaining what it does and what it needs.
+The same recipe parametrized for any voice/language:
+`finetune_voice.sh`, `export_teacher.sh`, `run_voice_pipeline.sh` (drives
+everything: teacher + distill + bundle + evidence), `run_small_pipeline.sh`
+(340k variants) — see [PIPELINE.md](PIPELINE.md) worked example C.
 
 ## Provenance
 
 - Dataset: [Google Chilean Spanish Low-resource Speech (SLR71)](https://openslr.org/71),
   Copyright 2018, 2019 Google, Inc., CC BY-SA 4.0 — see [ATTRIBUTION.txt](ATTRIBUTION.txt).
-- Base checkpoint: `es_ES-davefx-medium` from [rhasspy/piper-checkpoints](https://huggingface.co/datasets/rhasspy/piper-checkpoints).
+- Dataset: [Google Crowdsourced Colombian Spanish Speech (SLR72)](https://openslr.org/72),
+  Copyright 2018, 2019 Google, Inc., CC BY-SA 4.0 (Guevara-Rukoz et al.,
+  "Crowdsourcing Latin American Spanish for Low-Resource Text-to-Speech",
+  LREC 2020) — per-voice `ATTRIBUTION.txt` under `artifacts/data/<voice>/`.
+- Base checkpoints: `es_ES-davefx-medium` (male) and `es_ES-sharvard-medium`
+  (female) from [rhasspy/piper-checkpoints](https://huggingface.co/datasets/rhasspy/piper-checkpoints).
 - Teacher training + export: [OHF-Voice/piper1-gpl](https://github.com/OHF-Voice/piper1-gpl) (GPLv3).
 - Distillation + runtime: [Ampixa/sanoTTS](https://github.com/Ampixa/sanoTTS) (MIT runtime, GPLv3 training/G2P).
 
