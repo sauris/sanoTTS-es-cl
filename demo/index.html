@@ -266,6 +266,11 @@ async function speak() {
     }
     const text = $("text").value.trim();
     if (!text) throw new Error("type a sentence first");
+    // REQUIRED: point the g2p wasm at the bundle's espeak voice (es-419 for
+    // the Chilean bundles) before phonemizing. Without this the module keeps
+    // its en-us default and Spanish text comes out garbled.
+    const voiceRc = setVoice(current.bundle.meta.espeak_voice, current.bundle.meta.g2p_voice_slot);
+    if (voiceRc !== 0) throw new Error(`set_voice(${current.bundle.meta.espeak_voice}) failed: rc=${voiceRc}`);
     const chunks = splitChunks(text);
     const pcms = [];
     const t0 = performance.now();
@@ -344,9 +349,91 @@ $("voice").addEventListener("change", () => {
   if (t) $("text").value = t;
 });
 
-// ?autoplay=1: browsers block audio without a user gesture, so try to play
-// immediately and fall back to a one-tap prompt if the context is suspended.
-if (autoplay && found.length) {
+// ?selftest=<voice>: synthesize the default text headlessly and dump a
+// machine-readable report (ids, hashes, wav base64) as the page body.
+if (params.get("selftest")) {
+  const selfKey = params.get("selftest") === "1" ? sel.value : params.get("selftest");
+  let blobInfo = null;
+  try {
+    const raw = await loadVoice(selfKey);
+    const bundle = { meta: raw.meta, front: mallocBytes(raw.front), dec: mallocBytes(raw.dec) };
+    const dv32 = (arr, off) => arr.length >= off + 4 ? new DataView(arr.buffer, arr.byteOffset + off).getInt32(0, true) : null;
+    blobInfo = {
+      front_len: raw.front.length,
+      dec_len: raw.dec.length,
+      front_heap_len: bundle.front.len,
+      dec_heap_len: bundle.dec.len,
+      meta_front_bytes: bundle.meta.front_bytes,
+      meta_dec_bytes: bundle.meta.dec_bytes,
+      meta_bytes: bundle.meta.front_dims.meta_bytes,
+      weight_floats: bundle.meta.front_dims.weight_floats,
+      front_magic: dv32(raw.front, 0),
+      dec_magic: dv32(raw.dec, 0),
+      front_version: dv32(raw.front, 4),
+      front_n_tensors: dv32(raw.front, 68),
+    };
+    const text = $("text").value || DEFAULT_TEXT[selfKey] || "Hola.";
+    const chunks = splitChunks(text);
+    // REQUIRED: point the g2p wasm at the bundle's espeak voice (es-419 for
+    // the Chilean bundles) before phonemizing. Without this the module keeps
+    // its en-us default and Spanish text comes out garbled.
+    const voiceRc = setVoice(bundle.meta.espeak_voice, bundle.meta.g2p_voice_slot);
+    if (voiceRc !== 0) throw new Error(`set_voice(${bundle.meta.espeak_voice}) failed: rc=${voiceRc}`);
+    const idsList = [];
+    const pcms = [];
+    for (const c of chunks) {
+      const nBytes = G.lengthBytesUTF8(c) + 1;
+      const textP = G._malloc(nBytes);
+      G.stringToUTF8(c, textP, nBytes);
+      const idP = G._malloc(MAX_IDS * 4);
+      const nIds = g2pIds(textP, idP, MAX_IDS);
+      G._free(textP);
+      const ids = Int32Array.from(G.HEAP32.subarray(idP >> 2, (idP >> 2) + nIds));
+      G._free(idP);
+      idsList.push(Array.from(ids));
+      const idsBytes = new Uint8Array(ids.buffer, ids.byteOffset, ids.byteLength);
+      const idsP = V._malloc(idsBytes.length);
+      V.HEAPU8.set(idsBytes, idsP);
+      const outP = V._malloc(OUT_CAP * 4);
+      const n = synth(bundle.front.p, bundle.dec.p, idsP, ids.length, bundle.meta.length_scale, outP, OUT_CAP);
+      [idsP, outP].forEach((p) => V._free(p));
+      if (n <= 0) throw new Error("synth failed " + n);
+      pcms.push(V.HEAPF32.slice(outP >> 2, (outP >> 2) + n));
+    }
+    const total = pcms.reduce((a, p) => a + p.length, 0);
+    const pcm = new Float32Array(total);
+    let off = 0;
+    for (const p of pcms) { pcm.set(p, off); off += p.length; }
+    async function shaHex(bytes) {
+      const d = await crypto.subtle.digest("SHA-256", bytes);
+      return Array.from(new Uint8Array(d)).map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+    const pcmSha = await shaHex(pcm.buffer);
+    const wav = toWav(pcm, SR);
+    const u8 = new Uint8Array(wav);
+    let bin = "";
+    for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
+    const report = {
+      build: "2026-09-12.5",
+      key: selfKey,
+      weights: bundle.meta.weights,
+      length_scale: bundle.meta.length_scale,
+      text,
+      chunks,
+      idsCounts: idsList.map(a => a.length),
+      idsChunk0: idsList[0],
+      blob: blobInfo,
+      pcmSamples: pcm.length,
+      pcmSha,
+      wavB64: btoa(bin),
+    };
+    document.body.innerText = "SELFTEST_JSON " + JSON.stringify(report);
+    window.__SELFTEST = report;
+  } catch (e) {
+    document.body.innerText = "SELFTEST_ERROR " + (e && e.message || e);
+    window.__SELFTEST = { error: String(e && e.message || e), blob: blobInfo };
+  }
+} else if (autoplay && found.length) {
   await speak();
   if (audioCtx && audioCtx.state !== "running") {
     status("browser blocked autoplay — press Speak once to start the audio", true);
