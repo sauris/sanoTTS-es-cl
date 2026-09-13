@@ -101,11 +101,16 @@ python3 -m http.server 8178          # then open http://localhost:8178
 
 `demo/setup.sh` is only needed to refresh the wasm runtime from a newer
 sanoTTS checkout (`demo/setup.sh /path/to/sanoTTS/web`). The page loads the
-committed voice bundles (`chilean-small` f16 at 681 KB,
+committed voice bundles (`chilean` 1.57M, `chilean-small` f16 at 681 KB,
 `chilean-small-int8` at 333 KB), phonemizes your text with the espeak-ng
 es-419 wasm and synthesizes live — type anything, press Speak, or download
-the WAV. Add more bundles (e.g. the 1.57M `chilean`) by copying
-`web/voices/<key>` into `demo/voices/`.
+the WAV. Two lessons from debugging this page live are written up in
+[PIPELINE.md §10](PIPELINE.md): a custom player MUST call
+`snt_g2p_set_voice(espeak_voice, slot)` before the first phonemize (the
+demo initially shipped without it and phonemized Spanish with the en-us
+default), and text must be chunked per sentence like the main site's
+`splitChunks()`. `demo/cdp_speak.cjs` / `demo/cdp_selftest.cjs` drive the
+page headlessly for regression checks.
 
 ## Layout
 

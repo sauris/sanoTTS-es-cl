@@ -17,8 +17,9 @@ Sections:
 9. [Piper contribution package](#9-piper-contribution-package)
 10. [Gotchas learned the hard way](#10-gotchas)
 
-Worked examples at the end: [female es_CL voice](#worked-example-a-female-es_cl-voice)
-and [a brand-new language](#worked-example-b-a-brand-new-language).
+Worked examples at the end: [female es_CL voice](#worked-example-a-female-es_cl-voice),
+[a brand-new language](#worked-example-b-a-brand-new-language) and
+[three voices in one unattended night](#worked-example-c-three-voices-in-one-unattended-night).
 
 ---
 
@@ -360,6 +361,24 @@ plus one line in `docs/VOICES.md` ("Español, Chile (Spanish, es_CL)").
 
 ## 10. Gotchas
 
+- **A custom player must call `set_voice` before the first phonemize call.**
+  The g2p wasm keeps whatever espeak voice it was last given — on a fresh
+  page that is the `en-us` default baked into `snt_g2p_init`. The demo page
+  shipped without the switch, so Spanish text was phonemized as *English*
+  and came out as garble while the main site (which sets the voice inside
+  `synthVoice`) was always clear — bit-identical output between the two only
+  after `snt_g2p_set_voice(meta.espeak_voice, meta.g2p_voice_slot)` runs
+  before the first `snt_g2p_text_to_ids`, failing hard if the switch is
+  rejected. Debugged with `demo/cdp_speak.cjs` (drives the real Speak path
+  headlessly and saves the WAV; the md5 matching the main site's output was
+  the proof) and `demo/cdp_selftest.cjs` (dumps ids/hashes from inside the
+  page). If a custom player sounds "like the wrong language", this is the
+  first thing to check.
+- **Split text into per-sentence chunks before synthesizing.** The students
+  are trained on single utterances; feeding a whole paragraph as one id
+  sequence degrades to near-garbage. The main site's `splitChunks()` (ported
+  verbatim into the demo) is the reference implementation.
+
 - **PowerShell → wsl.exe eats `$` and quotes.** Never inline complex bash in
   `wsl -d Debian -- bash -lc "..."` from PowerShell; write a script file and
   run `wsl -d Debian -- bash /mnt/c/.../script.sh`. This repo's `scripts/`
@@ -423,3 +442,82 @@ parts:
    you trained with a non-standard map (piper hasn't, historically).
 7. Everything else — orchestrator, gates, bundle, evidence, packaging — is
    language-agnostic.
+
+## Worked example C: three voices in one unattended night
+
+2026-09-13, executed end-to-end by the parametrized scripts in
+[`scripts/`](scripts/) (the huemul-specific ones above stay as the reference
+walkthrough). Three voices, one GPU, one detached master loop:
+
+| voice | lang | speaker | base ckpt | best val_mos | OOD CER / WER |
+|---|---|---|---|---|---|
+| copihue | es_CL | SLR71 female clf_04310 (~16.6 min) | es_ES-sharvard | 3.54 @ ep 869 | 0.039 / 0.196 |
+| vueltiao | es_CO | SLR72 male com_06136 (~18.1 min) | es_ES-davefx | 3.25 @ ep 894 | 0.053 / 0.193 |
+| chande | es_CO | SLR72 female cof_02484 (~19.8 min) | es_ES-sharvard | 3.72 @ ep 814 | 0.022 / 0.127 |
+
+(chilean/huemul for comparison: val_mos 3.46, CER 0.021 / WER 0.082 — the
+16-sentence WER is noisy, gate on CER + ears. Names follow the endemic-thing
+convention; the two Colombian voices are named from the Sincelejo savannas:
+the chandé dance and the sombrero vueltiao woven in San Andrés de Sotavento.)
+
+Per voice (~1.9 h wall on the 4070): finetune 1000 epochs ≈ 105 min →
+ONNX export + audition render ≈ 15 s → distill s1–s11 ≈ 45 min → bundle
+export + wasm-render evidence ≈ 30 s. All stages resumable via
+`artifacts/es_cl/pipeline/<voice>/*.done`; the master is
+`scripts/run_voice_pipeline.sh`, run detached:
+
+```bash
+wsl -d Debian -- bash -lc "setsid nohup bash /tmp/run_voice_pipeline.sh \
+  > artifacts/es_cl/logs/pipeline_master.log 2>&1 < /dev/null & disown; sleep 8"
+```
+
+New scripts and what they generalize:
+
+- `export_slr71_speaker.py --voice V --config female --speaker 4310` — any
+  SLR71 speaker (copihue = top female at 16.6 min, from the §2 stats table).
+- `stats_es_co.py` / `export_es_co_speaker.py` — SLR72 has no HF dataset;
+  rank speakers by wav-header durations straight inside the openslr zips,
+  then export from the zip (same cleanup rules; TSV transcripts). Same
+  gender-id-collision gotcha as SLR71 (com_04310 exists alongside
+  clf_04310!).
+- `build_distill_corpus2.py --voice V` — SLR71 + SLR72 + Tatoeba top-up to
+  8 000 rows; excludes every voice's eval holdouts, the es_ES evidence
+  sentences and the shared `tatoeba_eval16.json` reserve (loaded, never
+  regenerated, so all voices eval on the same 16 sentences).
+- `finetune_voice.sh V LANG GENDER` — picks the gender-matched base ckpt,
+  per-voice cache dir, per-language config copy (es_CO reuses the es_CL
+  config verbatim: espeak es-419 + standard 256 map).
+- `export_teacher.sh V LANG` — picks the best val_mos checkpoint by filename,
+  exports ONNX, patches language/dataset/attestation into the config copy,
+  renders 8 auditions, then trims checkpoints (disk guard, see below).
+- `run_phase3_voice.sh` / `export_bundle_voice.sh` / `run_evidence_voice.py`
+  — the §4/§7/§8 flow with teacher/corpus/key as arguments.
+- `package_piper_voice.sh` per voice (or the ps1 equivalent) →
+  `artifacts/release/piper-voices/es/{CL/copihue,CO/vueltiao,CO/chande}/medium/`.
+
+Site wiring: one `VOICES` entry per voice (copihue joins the `chilean` tile;
+vueltiao + chande form a new `colombian` tile 🇨🇴), `DEFAULT_TEXT` entries,
+and a Spanish–Colombia row in the language table fed by the three new
+`experiments/evidence/*-tatoeba-20260913.json` files.
+
+Gotchas added to the wall of pain:
+
+- **Lightning val checkpoints are ~1 GB each** and one lands every val epoch;
+  three finetunes filled the boot drive to 0 bytes (and a 0-byte
+  `<text>.audio.pt` cache entry then poisons every later run of that voice —
+  `PytorchStreamReader failed reading zip archive` in `prepare_data`; delete
+  the voice's cache dir to rebuild). `export_teacher.sh` now trims all but
+  the best val_mos ckpt + last.ckpt, and a detached `disk_guard.sh` prunes
+  val_mel ckpts + all-but-top-3 val_mos during training.
+- **A checkpoint-pruning guard must exempt files younger than ~10 min** —
+  `fsspec`'s atomic save (move → copystat) races any deleter, and the run
+  dies with `FileNotFoundError` in `copystat`.
+- **wsl.exe-hosted background processes die with their console** — long jobs
+  must be launched with `setsid nohup ... & disown` *inside* WSL (and the
+  launcher must `sleep` a few seconds so the new session exists before
+  wsl.exe exits). If the WSL VM itself wedges (`HCS_E_CONNECTION_TIMEOUT`),
+  only an elevated `Stop-Process -Name vmmemWSL` / service restart or a
+  reboot clears it; everything on /mnt/c survives and the master resumes
+  from done-files.
+- **`pkill -f` matches its own launcher's command line** — use
+  `ps | grep -F | awk | xargs kill` instead.
