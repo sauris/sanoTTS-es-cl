@@ -458,7 +458,8 @@ walkthrough). Three voices, one GPU, one detached master loop:
 (huemul for comparison: val_mos 3.46, CER 0.021 / WER 0.082 — the
 16-sentence WER is noisy, gate on CER + ears. Names follow the endemic-thing
 convention; the two Colombian voices are named from the Sincelejo savannas:
-the chandé dance and the sombrero vueltiao woven in San Andrés de Sotavento.)
+the chandé dance and the sombrero vueltiao woven in the Zenú towns of
+Chinú, Tuchín and San Andrés de Sotavento, Córdoba.)
 
 Small (~340k) variants (`scripts/run_small_pipeline.sh`, reusing each main
 run's packs via `run_phase3_small_voice.sh` + `export_bundle_voice.sh small`):

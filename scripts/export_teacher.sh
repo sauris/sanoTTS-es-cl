@@ -96,7 +96,7 @@ else:
         ("05_coast", "Oye, \u00bfvamos para la plaza del mercado a comer un bollo limpio con suero coste\u00f1o?"),
         ("06_numbers", "Un sombrero vueltiao fino de 23 vueltas cuesta m\u00e1s de un mill\u00f3n de pesos."),
         ("07_question", "\u00bfCu\u00e1ndo empiezan las corralejas de Sincelejo?"),
-        ("08_long", "El sombrero vueltiao es el s\u00edmbolo de los sabaneros de Sucre y C\u00f3rdoba, tejido a mano con ca\u00f1a flecha en San Andr\u00e9s de Sotavento."),
+        ("08_long", "El sombrero vueltiao es el s\u00edmbolo de los sabaneros de Sucre y C\u00f3rdoba, tejido a mano con ca\u00f1a flecha en Chin\u00fa, Tuch\u00edn y San Andr\u00e9s de Sotavento."),
     ]
 
 samples = [("01_eval", eval_lines[0]), ("02_eval", eval_lines[1])] + probes

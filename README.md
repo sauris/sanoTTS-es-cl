@@ -16,7 +16,8 @@ Chilean and Colombian Spanish text-to-speech, end to end:
    sanoTTS wasm runtime (plus an int8 `huemul-small-int8` at 333 KB).
    Voice names follow the endemic-thing convention; the Colombian pair is
    named from the Sincelejo savannas — the *chandé* folk dance and the
-   sombrero *vueltiao* woven in San Andrés de Sotavento, Sucre.
+   sombrero *vueltiao* woven in the Zenú towns of Chinú, Tuchín and
+   San Andrés de Sotavento (Córdoba).
 3. The browser espeak-ng G2P module (`web/snt_g2p.*`) upgraded to the exact
    espeak-ng version piper 1.8 uses, with the `es-419` voice added and an
    exact-parity gate (`20/20` sentences vs python piper, and `en/de/fr/vi/zh`
